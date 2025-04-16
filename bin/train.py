@@ -5,6 +5,13 @@ import os
 import sys
 import traceback
 
+# Ensure we can import from parent directory
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Import and apply the ResNetPL loading fix
+from fix_resnet_pl_loading import apply_resnet_pl_loading_fix
+apply_resnet_pl_loading_fix()
+
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'

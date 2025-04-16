@@ -1,0 +1,20 @@
+# Configuration file that points to your dataset directories
+
+# Base directory for your dataset - should contain subdirectories:
+# - train/: Training images and masks
+# - val/: Validation images and masks
+# - visual_test/: Test images and masks for visual evaluation
+#
+# Each subdirectory should contain image files and corresponding mask files:
+# - image.png: Original image 
+# - image_mask.png: Corresponding mask (white=area to inpaint, black=area to preserve)
+data_root_dir: /workspace/lama/my_dataset
+
+# Directory where training results will be stored
+out_root_dir: /workspace/lama/experiments
+
+# Directory for TensorBoard logs
+tb_dir: /workspace/lama/tb_logs
+
+# NOTE: You can run prepare_dataset.py to verify your dataset is set up correctly:
+# python bin/prepare_dataset.py /workspace/lama/my_dataset

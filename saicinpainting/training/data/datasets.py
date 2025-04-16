@@ -23,8 +23,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 class InpaintingTrainDataset(Dataset):
-    def __init__(self, indir, mask_generator, transform):
-        self.in_files = list(glob.glob(os.path.join(indir, '**', '*.jpg'), recursive=True))
+    def __init__(self, indir, mask_generator, transform, img_suffix='.png', **kwargs):
+        self.img_suffix = img_suffix
+        self.in_files = list(glob.glob(os.path.join(indir, '**', f'*{self.img_suffix}'), recursive=True))
+        # Filter out mask files when using predefined masks
+        if kwargs.get('mask_generator_kind') == 'predefined' and kwargs.get('mask_file_suffix'):
+            mask_suffix = kwargs.get('mask_file_suffix')
+            self.in_files = [f for f in self.in_files if not os.path.basename(f).endswith(f'{mask_suffix}{img_suffix}')]
+        
+        LOGGER.info(f'Found {len(self.in_files)} training images with suffix {img_suffix}')
+        
         self.mask_generator = mask_generator
         self.transform = transform
         self.iter_i = 0
@@ -38,8 +46,8 @@ class InpaintingTrainDataset(Dataset):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = self.transform(image=img)['image']
         img = np.transpose(img, (2, 0, 1))
-        # TODO: maybe generate mask before augmentations? slower, but better for segmentation-based masks
-        mask = self.mask_generator(img, iter_i=self.iter_i)
+        # Pass the image path to the mask generator for predefined masks
+        mask = self.mask_generator(img, iter_i=self.iter_i, image_path=path)
         self.iter_i += 1
         return dict(image=img,
                     mask=mask)
@@ -96,6 +104,60 @@ class ImgSegmentationDataset(Dataset):
         tensor = torch.from_numpy(np.clip(mask.astype(int)-1, 0, None))
         ohe = F.one_hot(tensor.long(), num_classes=self.semantic_seg_n_classes) # w x h x n_classes
         return ohe.permute(2, 0, 1).float(), tensor.unsqueeze(0)
+
+
+class PredefinedMaskEvalDataset(Dataset):
+    """Dataset for evaluation with predefined masks"""
+    def __init__(self, indir, img_suffix='.png', mask_file_suffix='_mask', **kwargs):
+        self.indir = indir if isinstance(indir, (list, tuple)) else [indir]
+        self.img_suffix = img_suffix
+        self.mask_file_suffix = mask_file_suffix
+        self.images = []
+        
+        for indir_path in self.indir:
+            for img_path in sorted(glob.glob(os.path.join(indir_path, f'*{self.img_suffix}'))):
+                if not os.path.basename(img_path).endswith(f'{self.mask_file_suffix}{self.img_suffix}'):
+                    mask_path = img_path.replace(self.img_suffix, f'{self.mask_file_suffix}{self.img_suffix}')
+                    if os.path.exists(mask_path):
+                        self.images.append((img_path, mask_path))
+        
+        if not self.images:
+            error_msg = (
+                f"No valid image-mask pairs found in {indir}!\n"
+                f"Make sure your mask files follow naming convention: image_name{mask_file_suffix}{img_suffix}\n"
+                f"For example: if image is 'photo.png', mask should be 'photo{mask_file_suffix}.png'\n"
+                f"You can use the prepare_dataset.py script to verify and fix your dataset."
+            )
+            LOGGER.error(error_msg)
+            
+        LOGGER.info(f'Created PredefinedMaskEvalDataset with {len(self.images)} image-mask pairs from {indir}')
+
+    def __len__(self):
+        return len(self.images)
+
+    def __getitem__(self, idx):
+        img_path, mask_path = self.images[idx]
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            raise ValueError(f"Cannot read mask from {mask_path}")
+        
+        # Ensure mask is binary (0 or 1)
+        mask = mask.astype(np.float32) / 255.0
+        mask = (mask > 0.5).astype(np.float32)
+        
+        # Add batch dimension and transpose to CHW format
+        img = np.transpose(img.astype('float32') / 255.0, (2, 0, 1))
+        mask = np.expand_dims(mask, 0)
+        
+        return dict(
+            image=img,
+            mask=mask,
+            image_path=img_path,
+            mask_path=mask_path,
+        )
 
 
 def get_transforms(transform_variant, out_size):
@@ -214,6 +276,7 @@ def make_default_train_dataloader(indir, kind='default', out_size=512, mask_gen_
         dataset = InpaintingTrainDataset(indir=indir,
                                          mask_generator=mask_generator,
                                          transform=transform,
+                                         mask_generator_kind=mask_generator_kind,  # Pass this to filter mask files
                                          **kwargs)
     elif kind == 'default_web':
         dataset = InpaintingTrainWebDataset(indir=indir,
@@ -253,13 +316,27 @@ def make_default_val_dataset(indir, kind='default', out_size=512, transform_vari
         ])
 
     LOGGER.info(f'Make val dataloader {kind} from {indir}')
+    
+    # For validation with predefined masks, use PredefinedMaskEvalDataset
+    if kwargs.get("mask_generator_kind") == "predefined":
+        LOGGER.info(f'Using predefined masks for validation with suffix: {kwargs.get("mask_file_suffix", "_mask")}')
+        return PredefinedMaskEvalDataset(
+            indir=indir, 
+            img_suffix=kwargs.get('img_suffix', '.png'),
+            mask_file_suffix=kwargs.get('mask_file_suffix', '_mask'), 
+            **{k: v for k, v in kwargs.items() if k not in ['mask_generator_kind', 'mask_gen_kwargs', 'img_suffix', 'mask_file_suffix']}
+        )
+    
     mask_generator = get_mask_generator(kind=kwargs.get("mask_generator_kind"), kwargs=kwargs.get("mask_gen_kwargs"))
 
     if transform_variant is not None:
         transform = get_transforms(transform_variant, out_size)
 
     if kind == 'default':
-        dataset = InpaintingEvaluationDataset(indir, **kwargs)
+        # Remove mask_generator_kind and mask_file_suffix to avoid errors
+        eval_kwargs = {k: v for k, v in kwargs.items() 
+                      if k not in ['mask_generator_kind', 'mask_file_suffix', 'mask_gen_kwargs']}
+        dataset = InpaintingEvaluationDataset(indir, **eval_kwargs)
     elif kind == 'our_eval':
         dataset = OurInpaintingEvaluationDataset(indir, **kwargs)
     elif kind == 'img_with_segm':

@@ -13,6 +13,7 @@ import traceback
 
 from saicinpainting.evaluation.utils import move_to_device
 from saicinpainting.evaluation.refinement import refine_predict
+from saicinpainting.evaluation.data import OurInpaintingDataset, get_mask_generator
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['MKL_NUM_THREADS'] = '1'
@@ -63,15 +64,42 @@ def main(predict_config: OmegaConf):
         if not predict_config.indir.endswith('/'):
             predict_config.indir += '/'
 
-        dataset = make_default_val_dataset(predict_config.indir, **predict_config.dataset)
-        for img_i in tqdm.trange(len(dataset)):
-            mask_fname = dataset.mask_filenames[img_i]
-            cur_out_fname = os.path.join(
-                predict_config.outdir, 
-                os.path.splitext(mask_fname[len(predict_config.indir):])[0] + out_ext
+        # Use custom dataset if specified
+        if predict_config.get('use_our_dataset', False):
+            LOGGER.info("Using OurInpaintingDataset")
+            mask_generator_kwargs = predict_config.dataset.get('mask_generator_kwargs', {})
+            mask_generator = get_mask_generator(
+                predict_config.dataset.get('mask_generator_kind', 'predefined'),
+                mask_generator_kwargs
             )
+            dataset = OurInpaintingDataset(predict_config.indir, 
+                                           mask_generator=mask_generator,
+                                           pad_out_to_modulo=predict_config.dataset.get('pad_out_to_modulo', 8))
+        else:
+            LOGGER.info("Using default validation dataset")
+            dataset = make_default_val_dataset(predict_config.indir, **predict_config.dataset)
+        
+        LOGGER.info(f'Found {len(dataset)} images in {predict_config.indir}')
+        for img_i in tqdm.trange(len(dataset)):
+            sample = dataset[img_i]
+            if predict_config.get('use_our_dataset', False):
+                # For OurInpaintingDataset, construct output path from image_path
+                image_path = sample['image_path']
+                rel_path = os.path.relpath(image_path, predict_config.indir)
+                cur_out_fname = os.path.join(
+                    predict_config.outdir,
+                    os.path.splitext(rel_path)[0] + out_ext
+                )
+            else:
+                # Standard path construction for default dataset
+                mask_fname = dataset.mask_filenames[img_i]
+                cur_out_fname = os.path.join(
+                    predict_config.outdir, 
+                    os.path.splitext(mask_fname[len(predict_config.indir):])[0] + out_ext
+                )
+                
             os.makedirs(os.path.dirname(cur_out_fname), exist_ok=True)
-            batch = default_collate([dataset[img_i]])
+            batch = default_collate([sample])
             if predict_config.get('refine', False):
                 assert 'unpad_to_size' in batch, "Unpadded size is required for the refinement"
                 # image unpadding is taken care of in the refiner, so that output image

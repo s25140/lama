@@ -2,6 +2,7 @@ import math
 import random
 import hashlib
 import logging
+import os
 from enum import Enum
 
 import cv2
@@ -315,6 +316,42 @@ class MixedMaskGenerator:
         return result
 
 
+class PredefinedMaskGenerator:
+    """
+    Loads predefined masks from disk instead of generating them.
+    Assumes masks are named as [image_basename]_[mask_suffix][extension]
+    """
+    def __init__(self, mask_file_suffix="_mask"):
+        self.mask_file_suffix = mask_file_suffix
+    
+    def __call__(self, img, iter_i=None, raw_image=None, image_path=None):
+        if image_path is None:
+            raise ValueError("PredefinedMaskGenerator requires image_path to be provided")
+        
+        # Extract base name and extension from image path
+        img_dir = os.path.dirname(image_path)
+        img_basename = os.path.basename(image_path)
+        img_name, img_ext = os.path.splitext(img_basename)
+
+        # Construct mask path
+        mask_filename = img_name + self.mask_file_suffix + img_ext
+        mask_path = os.path.join(img_dir, mask_filename)
+        
+        if not os.path.exists(mask_path):
+            raise FileNotFoundError(f"Predefined mask not found: {mask_path}")
+        
+        mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+        # Convert to float32 and normalize to [0,1] range
+        mask = mask.astype(np.float32) / 255.0
+                
+        # Match input image dimensions - ensure mask is correctly sized
+        if img is not None:
+            if mask.shape != img.shape[1:]:  # img is in CHW format
+                mask = cv2.resize(mask, (img.shape[2], img.shape[1]))
+                
+        return mask[None, ...]  # Add channel dimension [1, H, W]
+
+
 def get_mask_generator(kind, kwargs):
     if kind is None:
         kind = "mixed"
@@ -327,6 +364,8 @@ def get_mask_generator(kind, kwargs):
         cl = OutpaintingMaskGenerator
     elif kind == "dumb":
         cl = DumbAreaMaskGenerator
+    elif kind == "predefined":
+        cl = PredefinedMaskGenerator
     else:
         raise NotImplementedError(f"No such generator kind = {kind}")
     return cl(**kwargs)

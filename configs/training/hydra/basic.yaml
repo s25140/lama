@@ -1,0 +1,32 @@
+# Basic Hydra configuration without environment variable interpolation
+job:
+  config:
+    # Resolvers config
+    resolve_parse_heuristic: strict
+
+run:
+  dir: ${location.out_root_dir}/${now:%Y-%m-%d_%H-%M-%S}
+
+sweep:
+  dir: ${location.out_root_dir}
+  subdir: ${hydra.job.num}
+
+# Output configurations for Hydra
+output_subdir: .hydra
+callbacks:
+  tasks:
+    copy_sources: null  # Disable copying sources to output
+    copy_configs: null  # Disable copying configs to output
+
+help:
+  app_name: LaMa Training
+  header: Training configuration for LaMa inpainting model
+
+# Console logger for Hydra logs
+verbose: false
+verbose_header: null
+
+# Default resolver configurations
+resolvers:
+  # Disable env resolver and others that might cause issues
+  env: null
