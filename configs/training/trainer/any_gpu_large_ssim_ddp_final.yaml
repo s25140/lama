@@ -2,7 +2,7 @@
 kwargs:
   gpus: -1
   accelerator: ddp
-  max_epochs: 10
+  max_epochs: 30
   gradient_clip_val: 1
   log_gpu_memory: None  # set to min_max or all for debug
   limit_train_batches: 25000

@@ -136,3 +136,5 @@ dmypy.json
 ## vim
 *.sw?
 .inference/
+bin/prepare_dataset.py
+root_2025-04-12_12-17-28_train_big-lama_.zip
