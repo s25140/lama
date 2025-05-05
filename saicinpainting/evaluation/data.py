@@ -85,11 +85,29 @@ class InpaintingDataset(Dataset):
         return dict(image=img, mask=mask, image_path=path)
 
 class OurInpaintingDataset(Dataset):
-    def __init__(self, indir, mask_generator=None, transform=None, img_suffix='.jpg', pad_out_to_modulo=None):
-        self.in_files = list(glob.glob(os.path.join(indir, '**', f'*{img_suffix}'), recursive=True))
+    def __init__(self, indir, mask_generator=None, transform=None, img_suffix='.png', pad_out_to_modulo=None):
+        # Get all image files with the specified suffix
+        all_files = list(glob.glob(os.path.join(indir, '**', f'*{img_suffix}'), recursive=True))
+        
+        # Filter out files that are likely masks based on common naming patterns
+        # This prevents the dataset from trying to process mask images as input images
+        self.in_files = []
+        for file_path in all_files:
+            filename = os.path.basename(file_path)
+            # Skip files with common mask naming patterns
+            if ('_mask' in filename.lower() or 
+                'mask_' in filename.lower() or 
+                'mask' in filename.lower()):
+                continue
+            self.in_files.append(file_path)
+        
         self.mask_generator = mask_generator
         self.transform = transform
         self.pad_out_to_modulo = pad_out_to_modulo
+        
+        # Log info about filtered files
+        if len(all_files) - len(self.in_files) > 0:
+            LOGGER.info(f"Filtered out {len(all_files) - len(self.in_files)} mask images from dataset")
 
     def __len__(self):
         return len(self.in_files)
@@ -107,12 +125,16 @@ class OurInpaintingDataset(Dataset):
             mask = self.mask_generator(img, raw_image=raw_image, image_path=path)
         else:
             mask = np.zeros((1, img.shape[1], img.shape[2]), dtype=np.float32)
+        
+        # Store original image dimensions before padding
+        orig_height, orig_width = img.shape[1], img.shape[2]
             
         if self.pad_out_to_modulo is not None and self.pad_out_to_modulo > 1:
             img = pad_img_to_modulo(img, self.pad_out_to_modulo)
             mask = pad_img_to_modulo(mask, self.pad_out_to_modulo)
             
-        return dict(image=img, mask=mask, image_path=path)
+        # Return the original dimensions as unpad_to_size
+        return dict(image=img, mask=mask, image_path=path, unpad_to_size=(orig_height, orig_width))
 
 class InpaintingEvalOnlineDataset(Dataset):
     def __init__(self, indir, mask_generator, img_suffix='.jpg', pad_out_to_modulo=None, transform=None, out_size=None):
