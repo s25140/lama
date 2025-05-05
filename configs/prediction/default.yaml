@@ -19,8 +19,8 @@ refine: False # refiner will only run if this is True
 refiner:
   gpu_ids: 0, # the GPU ids of the machine to use. If only single GPU, use: "0,"
   modulo: ${dataset.pad_out_to_modulo}
-  n_iters: 15 # number of iterations of refinement for each scale
-  lr: 0.002 # learning rate
+  n_iters: 73 # number of iterations of refinement for each scale
+  lr: 0.0138 # learning rate
   min_side: 256 # todo: try 256  # all sides of image on all scales should be >= min_side / sqrt(2)
-  max_scales: 8 # max number of downscaling scales for the image-mask pyramid
+  max_scales: 9999 # max number of downscaling scales for the image-mask pyramid
   px_budget: 1800000 # pixels budget. Any image will be resized to satisfy height*width <= px_budget
