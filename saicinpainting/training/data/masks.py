@@ -249,13 +249,75 @@ class OutpaintingMaskGenerator:
         return mask[None, ...]
 
 
+def make_cross_mask(shape, mask_size_a, blur_size_a, edge_width=7):
+    height, width = shape
+    mask = np.zeros((height, width), np.float32)  # Create a 2D mask first
+    mask_size = min(height, width) // mask_size_a
+    center_h, center_w = height // 2, width // 2
+
+    # Ensure mask_size doesn't make indices go out of bounds, especially with edge_width
+    safe_mask_size_h = min(mask_size, center_h - edge_width)
+    safe_mask_size_w = min(mask_size, center_w - edge_width)
+    safe_mask_size = min(safe_mask_size_h, safe_mask_size_w)
+    if safe_mask_size <= 0:  # If mask is too small or image too small for edges
+        safe_mask_size = 1  # Ensure at least 1 pixel line if possible
+
+    # Draw the cross using safe_mask_size
+    mask[center_h - safe_mask_size:center_h + safe_mask_size, :] = 1.0
+    mask[:, center_w - safe_mask_size:center_w + safe_mask_size] = 1.0
+
+    # Make mask black at the edges
+    mask[0:edge_width, :] = 0.0
+    mask[-edge_width:, :] = 0.0
+    mask[:, 0:edge_width] = 0.0
+    mask[:, -edge_width:] = 0.0
+
+    # Blur the mask
+    blur_size = min(height, width) // blur_size_a
+    if blur_size % 2 == 0:
+        blur_size += 1  # Ensure odd kernel size
+    # Ensure blur_size is at least 1
+    blur_size = max(1, blur_size)
+
+    # Apply Gaussian blur only if blur_size > 1
+    if blur_size > 1:
+        # Ensure kernel size is smaller than image dimensions
+        blur_size = min(blur_size, height - 1, width - 1)
+        if blur_size % 2 == 0:  # Check again after min
+            blur_size -= 1
+        if blur_size > 1:  # Check again if it became <= 1
+            mask = cv2.GaussianBlur(mask, (blur_size, blur_size), 0)
+
+    # Add channel dimension and return
+    return mask[None, ...]  # Shape (1, H, W)
+
+
+class CrossMaskGenerator:
+    def __init__(self, min_mask_size_a=10, max_mask_size_a=50,
+                 min_blur_size_a=10, max_blur_size_a=50, edge_width=7):
+        self.min_mask_size_a = min_mask_size_a
+        self.max_mask_size_a = max_mask_size_a
+        self.min_blur_size_a = min_blur_size_a
+        self.max_blur_size_a = max_blur_size_a
+        self.edge_width = edge_width
+        assert self.min_mask_size_a <= self.max_mask_size_a
+        assert self.min_blur_size_a <= self.max_blur_size_a
+
+    def __call__(self, img, iter_i=None, raw_image=None):
+        mask_size_a = random.randint(self.min_mask_size_a, self.max_mask_size_a)
+        blur_size_a = random.randint(self.min_blur_size_a, self.max_blur_size_a)
+        return make_cross_mask(img.shape[1:], mask_size_a=mask_size_a,
+                               blur_size_a=blur_size_a, edge_width=self.edge_width)
+
+
 class MixedMaskGenerator:
-    def __init__(self, irregular_proba=1/3, irregular_kwargs=None,
-                 box_proba=1/3, box_kwargs=None,
-                 segm_proba=1/3, segm_kwargs=None,
+    def __init__(self, irregular_proba=1 / 3, irregular_kwargs=None,
+                 box_proba=1 / 3, box_kwargs=None,
+                 segm_proba=1 / 3, segm_kwargs=None,
                  squares_proba=0, squares_kwargs=None,
                  superres_proba=0, superres_kwargs=None,
                  outpainting_proba=0, outpainting_kwargs=None,
+                 cross_proba=0, cross_kwargs=None,  # Added cross mask params
                  invert_proba=0):
         self.probas = []
         self.gens = []
@@ -302,9 +364,24 @@ class MixedMaskGenerator:
                 outpainting_kwargs = {}
             self.gens.append(OutpaintingMaskGenerator(**outpainting_kwargs))
 
+        # Add cross mask generator
+        if cross_proba > 0:
+            self.probas.append(cross_proba)
+            if cross_kwargs is None:
+                cross_kwargs = {}
+            self.gens.append(CrossMaskGenerator(**cross_kwargs))
+
         self.probas = np.array(self.probas, dtype='float32')
-        self.probas /= self.probas.sum()
+        # Check if sum is close to zero, avoid division by zero
+        if self.probas.sum() < 1e-6:
+            LOGGER.warning("Sum of probabilities for MixedMaskGenerator is close to zero. Setting all to equal probability.")
+            # Set equal probability if sum is zero (e.g., all input probas were 0)
+            self.probas = np.ones(len(self.gens), dtype='float32') / len(self.gens) if len(self.gens) > 0 else np.array([])
+        else:
+            self.probas /= self.probas.sum()  # Normalize probabilities
+
         self.invert_proba = invert_proba
+        LOGGER.info(f'MixedMaskGenerator: Using {len(self.gens)} generators with probabilities {self.probas}')
 
     def __call__(self, img, iter_i=None, raw_image=None):
         kind = np.random.choice(len(self.probas), p=self.probas)
@@ -327,6 +404,8 @@ def get_mask_generator(kind, kwargs):
         cl = OutpaintingMaskGenerator
     elif kind == "dumb":
         cl = DumbAreaMaskGenerator
+    elif kind == "cross":  # Added direct access to CrossMaskGenerator
+        cl = CrossMaskGenerator
     else:
         raise NotImplementedError(f"No such generator kind = {kind}")
     return cl(**kwargs)

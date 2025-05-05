@@ -22,6 +22,15 @@ from saicinpainting.training.trainers import make_training_model
 from saicinpainting.utils import register_debug_signal_handlers, handle_ddp_subprocess, handle_ddp_parent_process, \
     handle_deterministic_config
 
+
+# Ensure we can import from parent directory
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Import and apply the ResNetPL loading fix
+from fix_resnet_pl_loading import apply_resnet_pl_loading_fix
+apply_resnet_pl_loading_fix()
+
+
 LOGGER = logging.getLogger(__name__)
 
 
