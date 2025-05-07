@@ -17,6 +17,7 @@ from .ssim import SSIM
 
 LOGGER = logging.getLogger(__name__)
 
+skip_fid = False
 
 def get_groupings(groups):
     """
@@ -176,6 +177,21 @@ class FIDScore(EvaluatorScore):
 
     def get_value(self, groups=None, states=None):
         LOGGER.info("FIDscore get_value called")
+        if skip_fid:
+            LOGGER.info("SKIPPING FID calculation, returning 0")
+            group_results = dict()
+            if groups is not None: # Check if groups exist before trying to process them
+                grouping = get_groupings(groups)
+                for label, index in grouping.items():
+                    if len(index) > 1:
+                        # Changed from np.array([0,0]) to scalar 0
+                        group_distance = 0
+                        group_results[label] = dict(mean=group_distance)
+                    else:
+                        group_results[label] = dict(mean=float('nan'))
+            # Return scalar 0 for the main mean and the potentially empty group_results
+            return dict(mean=0), group_results
+    
         activations_pred, activations_target = zip(*states) if states is not None \
             else (self.activations_pred, self.activations_target)
         activations_pred = torch.cat(activations_pred).cpu().numpy()
