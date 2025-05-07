@@ -293,8 +293,8 @@ def make_cross_mask(shape, mask_size_a, blur_size_a, edge_width=7):
 
 
 class CrossMaskGenerator:
-    def __init__(self, min_mask_size_a=10, max_mask_size_a=50,
-                 min_blur_size_a=10, max_blur_size_a=50, edge_width=7):
+    def __init__(self, min_mask_size_a=6, max_mask_size_a=30,
+                 min_blur_size_a=8, max_blur_size_a=40, edge_width=7):
         self.min_mask_size_a = min_mask_size_a
         self.max_mask_size_a = max_mask_size_a
         self.min_blur_size_a = min_blur_size_a
