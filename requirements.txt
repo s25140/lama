@@ -1,20 +1,23 @@
-pyyaml
-tqdm
-numpy
-easydict==1.9.0
-scikit-image==0.17.2
-scikit-learn==0.24.2
-opencv-python
-tensorflow
-joblib
-matplotlib
-pandas
-albumentations==0.5.2
-hydra-core==1.1.0
+pyyaml  # Keep as is, flexible
+tqdm  # Keep as is, flexible
+numpy>=1.20.0,<2.0.0  # Update from 1.19.2 - too old for PyTorch 2.x
+easydict==1.9.0  # Keep as is
+scikit-image>=0.19.0  # Update from 0.17.2 for newer NumPy compatibility
+scikit-learn>=1.0.0  # Update from 0.24.2
+opencv-python  # Keep as is
+tensorflow>=2.10.0  # Update from 2.6.0 for CUDA 11.8 compatibility
+joblib  # Keep as is
+matplotlib  # Keep as is
+pandas>=1.4.0  # Update from 1.2.5 for newer NumPy compatibility
+albumentations==0.4.6
+hydra-core==1.1.0  # Already updated in script
+#pytorch-lightning==1.9.3  # Already updated in script
+tabulate  # Keep as is
+kornia>=0.6.8  # Update from 0.5.0 for PyTorch 2.x compatibility
+webdataset  # Keep as is
+packaging  # Keep as is
+wldhx.yadisk-direct  # Keep as is
+protobuf==3.20.3  # Minor update from 3.20.0
+torch>=2.0.0,<2.1.0  # Added explicitly, already installed
+torchvision>=0.15.0,<0.16.0  # Added explicitly, already installed
 pytorch-lightning==1.2.9
-tabulate
-kornia==0.5.0
-webdataset
-packaging
-scikit-learn==0.24.2
-wldhx.yadisk-direct
