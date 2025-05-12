@@ -61,7 +61,7 @@ python -m pip install --upgrade pip
 
 # Install PyTorch first
 echo "[INFO] Installing PyTorch $TORCH_VERSION with CUDA $CUDA_VERSION_TAG..."
-pip install torch==${TORCH_VERSION}+${CUDA_VERSION_TAG} \
+pip install --resume-retries 5 torch==${TORCH_VERSION}+${CUDA_VERSION_TAG} \
            torchvision==${TORCHVISION_VERSION}+${CUDA_VERSION_TAG} \
            torchaudio==${TORCHAUDIO_VERSION}+${CUDA_VERSION_TAG} \
            -f $TORCH_WHL_URL
@@ -79,7 +79,7 @@ pip install numpy==1.24.3
 # Now install from requirements
 if [ -f "$REQUIREMENTS_FILE" ]; then
     echo "[INFO] Installing packages from $REQUIREMENTS_FILE..."
-    pip install -r $REQUIREMENTS_FILE
+    pip install --resume-retries 5 -r $REQUIREMENTS_FILE
 else
     echo "[WARN] $REQUIREMENTS_FILE not found, skipping requirements installation."
 fi

@@ -1,0 +1,13 @@
+git clone https://github.com/s25140/lama.git -b auto-mask-gen
+cd lama
+bash ./script.sh
+source inpenv/bin/activate
+export TORCH_HOME=$(pwd) && export PYTHONPATH=$(pwd) && export USER=root
+mkdir -p ade20k/ade20k-resnet50dilated-ppm_deepsup/
+wget -P ade20k/ade20k-resnet50dilated-ppm_deepsup/ http://sceneparsing.csail.mit.edu/model/pytorch/ade20k-resnet50dilated-ppm_deepsup/encoder_epoch_20.pth
+
+python3 bin/train.py -cn big-lama location=my_dataset ++trainer.kwargs.resume_from_checkpoint=/workspace/lama/my_model/big-lama-with-discr-remove-loss_segm_pl.ckpt ++data.batch_size=16
+
+# big-lama:
+pip install gdown
+gdown https://drive.google.com/uc?id=1YTiKZ1hQnKvTEbXIxFXjGg61pBAch_N7
