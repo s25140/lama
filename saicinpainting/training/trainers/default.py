@@ -135,6 +135,11 @@ class DefaultInpaintingTrainingModule(BaseInpaintingTrainingModule):
             total_loss = total_loss + resnet_pl_value
             metrics['gen_resnet_pl'] = resnet_pl_value
 
+        # Logging generator loss
+        LOGGER.info(f"Generator loss: {total_loss.item() if hasattr(total_loss, 'item') else total_loss}")
+        for k, v in metrics.items():
+            LOGGER.debug(f"Generator metric {k}: {v.item() if hasattr(v, 'item') else v}")
+
         return total_loss, metrics
 
     def discriminator_loss(self, batch):
@@ -171,5 +176,10 @@ class DefaultInpaintingTrainingModule(BaseInpaintingTrainingModule):
             total_loss = total_loss + fake_fakes_adv_discr_loss
             metrics['discr_adv_fake_fakes'] = fake_fakes_adv_discr_loss
             metrics.update(add_prefix_to_keys(fake_fakes_adv_metrics, 'adv_'))
+
+        # Logging discriminator loss
+        LOGGER.info(f"Discriminator loss: {total_loss.item() if hasattr(total_loss, 'item') else total_loss}")
+        for k, v in metrics.items():
+            LOGGER.debug(f"Discriminator metric {k}: {v.item() if hasattr(v, 'item') else v}")
 
         return total_loss, metrics

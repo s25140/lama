@@ -7,7 +7,7 @@ training_model:
   store_discr_outputs_for_vis: true
 losses:
   l1:
-    weight_missing: 3
+    weight_missing: 1 # 0 -> 1 to align/normalize color
     weight_known: 10
   perceptual:
     weight: 0
@@ -18,9 +18,9 @@ losses:
     mask_as_fake_target: true
     allow_scale_mask: true
   feature_matching:
-    weight: 20
+    weight: 80
   resnet_pl:
-    weight: 30
+    weight: 0 # turning off due to lack of semantic features in texture images
     weights_path: ${env:TORCH_HOME}
 
 generator:
@@ -31,6 +31,8 @@ generator:
   n_downsampling: 3
   n_blocks: 18
   add_out_act: sigmoid
+  freeze_color_layers: false
+  num_frozen_layers: 0
   init_conv_kwargs:
     ratio_gin: 0
     ratio_gout: 0

@@ -308,7 +308,9 @@ class FFCResNetGenerator(nn.Module):
                  up_norm_layer=nn.BatchNorm2d, up_activation=nn.ReLU(True),
                  init_conv_kwargs={}, downsample_conv_kwargs={}, resnet_conv_kwargs={},
                  spatial_transform_layers=None, spatial_transform_kwargs={},
-                 add_out_act=True, max_features=1024, out_ffc=False, out_ffc_kwargs={}):
+                 add_out_act=True, max_features=1024, out_ffc=False, out_ffc_kwargs={},
+                 freeze_color_layers=False, num_frozen_layers=2):
+        # freeze_color_layers: if True, freeze the first num_frozen_layers modules (color-defining layers)
         assert (n_blocks >= 0)
         super().__init__()
 
@@ -362,6 +364,16 @@ class FFCResNetGenerator(nn.Module):
         if add_out_act:
             model.append(get_activation('tanh' if add_out_act is True else add_out_act))
         self.model = nn.Sequential(*model)
+
+        # --- Freeze color layers if requested ---
+        if freeze_color_layers:
+            frozen = 0
+            for m in self.model:
+                if frozen >= num_frozen_layers:
+                    break
+                for p in m.parameters():
+                    p.requires_grad = False
+                frozen += 1
 
     def forward(self, input):
         return self.model(input)
