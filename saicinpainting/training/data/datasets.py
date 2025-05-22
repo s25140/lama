@@ -4,7 +4,6 @@ import os
 import random
 
 import albumentations as A
-from albumentations.pytorch import ColorJitter
 import cv2
 import numpy as np
 import torch
