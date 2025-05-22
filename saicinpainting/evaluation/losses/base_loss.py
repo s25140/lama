@@ -17,7 +17,7 @@ from .ssim import SSIM
 
 LOGGER = logging.getLogger(__name__)
 
-skip_fid = False
+skip_fid = True
 
 def get_groupings(groups):
     """

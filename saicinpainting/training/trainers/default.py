@@ -44,6 +44,11 @@ class DefaultInpaintingTrainingModule(BaseInpaintingTrainingModule):
         if self.fake_fakes_proba > 1e-3:
             self.fake_fakes_gen = FakeFakesGenerator(**(fake_fakes_generator_kwargs or {}))
 
+        self._epoch_gen_losses = []
+        self._epoch_discr_losses = []
+        self._epoch_gen_metrics = []
+        self._epoch_discr_metrics = []
+
     def forward(self, batch):
         if self.training and self.rescale_size_getter is not None:
             cur_size = self.rescale_size_getter(self.global_step)
@@ -135,10 +140,14 @@ class DefaultInpaintingTrainingModule(BaseInpaintingTrainingModule):
             total_loss = total_loss + resnet_pl_value
             metrics['gen_resnet_pl'] = resnet_pl_value
 
-        # Logging generator loss
-        LOGGER.info(f"Generator loss: {total_loss.item() if hasattr(total_loss, 'item') else total_loss}")
-        for k, v in metrics.items():
-            LOGGER.debug(f"Generator metric {k}: {v.item() if hasattr(v, 'item') else v}")
+        # Remove per-batch logging here
+        # LOGGER.info(...)
+        # for k, v in metrics.items():
+        #     LOGGER.debug(...)
+
+        # Accumulate for epoch logging
+        self._epoch_gen_losses.append(total_loss.detach().cpu())
+        self._epoch_gen_metrics.append({k: v.detach().cpu() for k, v in metrics.items()})
 
         return total_loss, metrics
 
@@ -177,9 +186,45 @@ class DefaultInpaintingTrainingModule(BaseInpaintingTrainingModule):
             metrics['discr_adv_fake_fakes'] = fake_fakes_adv_discr_loss
             metrics.update(add_prefix_to_keys(fake_fakes_adv_metrics, 'adv_'))
 
-        # Logging discriminator loss
-        LOGGER.info(f"Discriminator loss: {total_loss.item() if hasattr(total_loss, 'item') else total_loss}")
-        for k, v in metrics.items():
-            LOGGER.debug(f"Discriminator metric {k}: {v.item() if hasattr(v, 'item') else v}")
+        # Remove per-batch logging here
+        # LOGGER.info(...)
+        # for k, v in metrics.items():
+        #     LOGGER.debug(...)
+
+        # Accumulate for epoch logging
+        self._epoch_discr_losses.append(total_loss.detach().cpu())
+        self._epoch_discr_metrics.append({k: v.detach().cpu() for k, v in metrics.items()})
 
         return total_loss, metrics
+
+    def training_epoch_end(self, outputs):
+        import torch
+        # Generator loss
+        if self._epoch_gen_losses:
+            avg_gen_loss = torch.stack(self._epoch_gen_losses).mean().item()
+            LOGGER.info(f"Epoch {self.current_epoch}: Generator loss: {avg_gen_loss}")
+        if self._epoch_discr_losses:
+            avg_discr_loss = torch.stack(self._epoch_discr_losses).mean().item()
+            LOGGER.info(f"Epoch {self.current_epoch}: Discriminator loss: {avg_discr_loss}")
+        # Generator metrics
+        if self._epoch_gen_metrics:
+            keys = self._epoch_gen_metrics[0].keys()
+            for k in keys:
+                vals = [m[k] for m in self._epoch_gen_metrics if k in m]
+                avg = torch.stack(vals).mean().item()
+                LOGGER.info(f"Epoch {self.current_epoch}: Generator metric {k}: {avg}")
+        # Discriminator metrics
+        if self._epoch_discr_metrics:
+            keys = self._epoch_discr_metrics[0].keys()
+            for k in keys:
+                vals = [m[k] for m in self._epoch_discr_metrics if k in m]
+                avg = torch.stack(vals).mean().item()
+                LOGGER.info(f"Epoch {self.current_epoch}: Discriminator metric {k}: {avg}")
+        # Clear for next epoch
+        self._epoch_gen_losses.clear()
+        self._epoch_discr_losses.clear()
+        self._epoch_gen_metrics.clear()
+        self._epoch_discr_metrics.clear()
+        # Call parent if needed
+        if hasattr(super(), "training_epoch_end"):
+            super().training_epoch_end(outputs)

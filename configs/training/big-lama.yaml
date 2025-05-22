@@ -7,20 +7,20 @@ training_model:
   store_discr_outputs_for_vis: true
 losses:
   l1:
-    weight_missing: 1 # 0 -> 1 to align/normalize color
-    weight_known: 10
+    weight_missing: 5 # 1 -> 5 to guide more
+    weight_known: 8
   perceptual:
     weight: 0
   adversarial:
     kind: r1
-    weight: 20
+    weight: 15
     gp_coef: 0.001
     mask_as_fake_target: true
     allow_scale_mask: true
   feature_matching:
     weight: 80
   resnet_pl:
-    weight: 0 # turning off due to lack of semantic features in texture images
+    weight: 8 # off -> 8
     weights_path: ${env:TORCH_HOME}
 
 generator:

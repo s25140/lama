@@ -9,7 +9,7 @@ tensorflow>=2.10.0  # Update from 2.6.0 for CUDA 11.8 compatibility
 joblib  # Keep as is
 matplotlib  # Keep as is
 pandas>=1.4.0  # Update from 1.2.5 for newer NumPy compatibility
-albumentations==0.4.6
+albumentations
 hydra-core==1.1.0  # Already updated in script
 #pytorch-lightning==1.9.3  # Already updated in script
 tabulate  # Keep as is

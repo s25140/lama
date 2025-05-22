@@ -4,6 +4,7 @@ import os
 import random
 
 import albumentations as A
+from albumentations.pytorch import ColorJitter
 import cv2
 import numpy as np
 import torch
@@ -16,7 +17,6 @@ from torch.utils.data import Dataset, IterableDataset, DataLoader, DistributedSa
 
 from saicinpainting.evaluation.data import InpaintingDataset as InpaintingEvaluationDataset, \
     OurInpaintingDataset as OurInpaintingEvaluationDataset, ceil_modulo, InpaintingEvalOnlineDataset
-from saicinpainting.training.data.aug import IAAAffine2, IAAPerspective2
 from saicinpainting.training.data.masks import get_mask_generator
 
 LOGGER = logging.getLogger(__name__)
@@ -106,83 +106,89 @@ def get_transforms(transform_variant, out_size):
             A.RandomCrop(height=out_size, width=out_size),
             A.HorizontalFlip(),
             A.CLAHE(),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.8),
             A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
             A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5),
             A.ToFloat()
         ])
     elif transform_variant == 'distortions':
         transform = A.Compose([
-            IAAPerspective2(scale=(0.0, 0.06)),
-            IAAAffine2(scale=(0.7, 1.3),
-                       rotate=(-40, 40),
-                       shear=(-0.1, 0.1)),
+            A.Perspective(scale=(0.0, 0.06)),
+            A.Affine(scale=(0.7, 1.3),
+                     rotate=(-40, 40),
+                     shear={'x':(-0.1, 0.1), 'y':(-0.1, 0.1)}),
             A.PadIfNeeded(min_height=out_size, min_width=out_size),
             A.OpticalDistortion(),
             A.RandomCrop(height=out_size, width=out_size),
             A.HorizontalFlip(),
             A.CLAHE(),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.8),
             A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
             A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5),
             A.ToFloat()
         ])
     elif transform_variant == 'distortions_scale05_1':
         transform = A.Compose([
-            IAAPerspective2(scale=(0.0, 0.06)),
-            IAAAffine2(scale=(0.5, 1.0),
-                       rotate=(-40, 40),
-                       shear=(-0.1, 0.1),
-                       p=1),
+            A.Perspective(scale=(0.0, 0.06)),
+            A.Affine(scale=(0.5, 1.0),
+                     rotate=(-40, 40),
+                     shear={'x':(-0.1, 0.1), 'y':(-0.1, 0.1)},
+                     p=1),
             A.PadIfNeeded(min_height=out_size, min_width=out_size),
             A.OpticalDistortion(),
             A.RandomCrop(height=out_size, width=out_size),
             A.HorizontalFlip(),
             A.CLAHE(),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.8),
             A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
             A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5),
             A.ToFloat()
         ])
     elif transform_variant == 'distortions_scale03_12':
         transform = A.Compose([
-            IAAPerspective2(scale=(0.0, 0.06)),
-            IAAAffine2(scale=(0.3, 1.2),
-                       rotate=(-40, 40),
-                       shear=(-0.1, 0.1),
-                       p=1),
+            A.Perspective(scale=(0.0, 0.06)),
+            A.Affine(scale=(0.3, 1.2),
+                     rotate=(-40, 40),
+                     shear={'x':(-0.1, 0.1), 'y':(-0.1, 0.1)},
+                     p=1),
             A.PadIfNeeded(min_height=out_size, min_width=out_size),
             A.OpticalDistortion(),
             A.RandomCrop(height=out_size, width=out_size),
             A.HorizontalFlip(),
             A.CLAHE(),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.1, hue=0.1, p=0.8),
             A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
             A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5),
             A.ToFloat()
         ])
     elif transform_variant == 'distortions_scale03_07':
         transform = A.Compose([
-            IAAPerspective2(scale=(0.0, 0.06)),
-            IAAAffine2(scale=(0.3, 0.7),  # scale 512 to 256 in average
-                       rotate=(-40, 40),
-                       shear=(-0.1, 0.1),
-                       p=1),
+            A.Perspective(scale=(0.0, 0.06)),
+            A.Affine(scale=(0.3, 0.7),  # scale 512 to 256 in average
+                     rotate=(-40, 40),
+                     shear={'x':(-0.1, 0.1), 'y':(-0.1, 0.1)},
+                     p=1),
             A.PadIfNeeded(min_height=out_size, min_width=out_size),
             A.OpticalDistortion(),
             A.RandomCrop(height=out_size, width=out_size),
             A.HorizontalFlip(),
             A.CLAHE(),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.8),
             A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
             A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5),
             A.ToFloat()
         ])
     elif transform_variant == 'distortions_light':
         transform = A.Compose([
-            IAAPerspective2(scale=(0.0, 0.02)),
-            IAAAffine2(scale=(0.8, 1.8),
-                       rotate=(-20, 20),
-                       shear=(-0.03, 0.03)),
+            A.Perspective(scale=(0.0, 0.02)),
+            A.Affine(scale=(0.8, 1.8),
+                     rotate=(-20, 20),
+                     shear={'x':(-0.03, 0.03), 'y':(-0.03, 0.03)}),
             A.PadIfNeeded(min_height=out_size, min_width=out_size),
             A.RandomCrop(height=out_size, width=out_size),
             A.HorizontalFlip(),
             A.CLAHE(),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.8),
             A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
             A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5),
             A.ToFloat()
@@ -190,6 +196,7 @@ def get_transforms(transform_variant, out_size):
     elif transform_variant == 'non_space_transform':
         transform = A.Compose([
             A.CLAHE(),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.8),
             A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2),
             A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=30, val_shift_limit=5),
             A.ToFloat()
